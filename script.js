@@ -1,17 +1,28 @@
 'use strict';
 
-const salarioOriginal = 2500.00;
-const dataInicial = '2020-01';
+const salarioOriginal = 700.00;
 
-async function obterInflacaoAcumulada() {
-  const response = await fetch('https://brasilapi.com.br/api/inflation/v1/ipca');
+function formatarData(data) {
+  const dia = String(data.getDate()).padStart(2, '0');
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const ano = data.getFullYear();
+  return `${dia}/${mes}/${ano}`;
+}
+
+async function obterIPCAAcumulado() {
+  const dataInicial = '01/01/2020';
+  const dataFinal = formatarData(new Date());
+  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=${dataInicial}&dataFinal=${dataFinal}`;
+
+  const response = await fetch(url);
   const dados = await response.json();
 
-  const acumulado = dados
-    .filter(item => item.startingAt >= dataInicial)
-    .reduce((total, item) => total + item.value, 0);
+  const inflacaoAcumulada = dados.reduce((total, item) => {
+    const valor = parseFloat(item.valor.replace(',', '.'));
+    return total + valor;
+  }, 0);
 
-  return acumulado;
+  return inflacaoAcumulada;
 }
 
 function aplicarInflacao(valor, percentual) {
@@ -20,13 +31,14 @@ function aplicarInflacao(valor, percentual) {
 
 async function atualizarSalario() {
   try {
-    const inflacao = await obterInflacaoAcumulada();
-    const valorCorrigido = aplicarInflacao(salarioOriginal, inflacao);
+    const inflacao = await obterIPCAAcumulado();
+    const corrigido = aplicarInflacao(salarioOriginal, inflacao);
 
-    document.getElementById('salario-atualizado').textContent = 
-      valorCorrigido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  } catch (erro) {
-    document.getElementById('salario-atualizado').textContent = 'Erro ao carregar dados';
+    document.getElementById('salario-atualizado').textContent =
+      corrigido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  } catch (error) {
+    document.getElementById('salario-atualizado').textContent = 'Erro ao buscar dados';
+    console.error('Erro ao obter inflação:', error);
   }
 }
 
